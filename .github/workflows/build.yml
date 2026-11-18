@@ -13,6 +13,7 @@ jobs:
         uses: android-actions/setup-android@v3
       - name: Build APK manually
         run: |
+          yes | sdkmanager --licenses || true
           BUILD_TOOLS=$(ls $ANDROID_HOME/build-tools | tail -n 1)
           PLATFORM=$(ls $ANDROID_HOME/platforms | tail -n 1)
           mkdir -p build/gen build/obj build/apk
