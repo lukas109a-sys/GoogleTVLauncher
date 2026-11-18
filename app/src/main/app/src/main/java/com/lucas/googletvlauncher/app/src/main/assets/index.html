@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Google TV Launcher</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; }
+  body {
+    background: #0d0f14;
+    color: #e8eaed;
+    font-family: 'Segoe UI', Roboto, sans-serif;
+    overflow-x: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  #bg-backdrop {
+    position: fixed; inset: 0; z-index: -1;
+    background-size: cover; background-position: center;
+    filter: blur(22px) brightness(0.35);
+    transition: background-image 0.8s ease;
+  }
+  header {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 22px 48px;
+  }
+  .brand { font-size: 20px; font-weight: 600; letter-spacing: 0.5px; color: #fff; }
+  .brand span { color: #8ab4f8; }
+  .status { display: flex; gap: 18px; align-items: center; font-size: 16px; color: #bdc1c6; }
+  .btn-top {
+    background: rgba(255,255,255,0.1); border: 2px solid transparent;
+    color: #fff; padding: 8px 16px; border-radius: 20px; cursor: pointer;
+    font-size: 14px; outline: none;
+  }
+  .btn-top:focus, .btn-top:hover { border-color: #fff; background: rgba(255,255,255,0.22); transform: scale(1.05); }
+
+  .hero {
+    margin: 0 48px 24px; height: 240px; border-radius: 20px;
+    background: linear-gradient(90deg, rgba(13,15,20,0.95) 35%, rgba(13,15,20,0.2) 100%);
+    background-size: cover; background-position: center;
+    padding: 32px; display: flex; flex-direction: column; justify-content: flex-end;
+    position: relative; overflow: hidden; border: 1px solid rgba(255,255,255,0.1);
+  }
+  .hero-tag { background: #8ab4f8; color: #0d0f14; font-weight: 700; font-size: 11px; padding: 4px 10px; border-radius: 6px; width: fit-content; margin-bottom: 10px; }
+  .hero h1 { font-size: 28px; margin-bottom: 8px; max-width: 60%; }
+  .hero p { font-size: 14px; color: #bdc1c6; max-width: 55%; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+
+  .section-title { font-size: 18px; font-weight: 500; margin: 10px 48px 14px; color: #e8eaed; }
+  .row {
+    display: flex; gap: 18px; padding: 8px 48px 24px;
+    overflow-x: auto; scroll-behavior: smooth;
+  }
+  .row::-webkit-scrollbar { display: none; }
+
+  .app-card {
+    min-width: 130px; height: 110px; background: rgba(255,255,255,0.08);
+    border-radius: 16px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px;
+    border: 3px solid transparent; transition: all 0.18s ease; outline: none;
+  }
+  .app-card img { width: 48px; height: 48px; border-radius: 12px; object-fit: contain; }
+  .app-card span { font-size: 13px; max-width: 110px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .app-card:focus, .app-card:hover {
+    transform: scale(1.1); border-color: #fff; background: rgba(255,255,255,0.18);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.6);
+  }
+
+  .movie-card {
+    min-width: 145px; height: 210px; border-radius: 14px; overflow: hidden;
+    position: relative; border: 3px solid transparent; transition: all 0.2s ease; outline: none;
+    background: #1c1f26; text-decoration: none; display: block;
+  }
+  .movie-card img { width: 100%; height: 100%; object-fit: cover; }
+  .movie-card:focus, .movie-card:hover {
+    transform: scale(1.08); border-color: #fff; box-shadow: 0 10px 25px rgba(0,0,0,0.7);
+  }
+</style>
+</head>
+<body>
+  <div id="bg-backdrop"></div>
+
+  <header>
+    <div class="brand">Google <span>TV</span></div>
+    <div class="status">
+      <button class="btn-top focusable" onclick="openWifi()">Wi-Fi</button>
+      <span id="clock">12:00</span>
+    </div>
+  </header>
+
+  <div class="hero" id="hero-banner">
+    <div class="hero-tag">EM ALTA NOS LANÇAMENTOS</div>
+    <h1 id="hero-title">Carregando lançamentos...</h1>
+    <p id="hero-desc">Conecte a TV Box à internet para atualizar o catálogo automaticamente.</p>
+  </div>
+
+  <div class="section-title">Seus Aplicativos</div>
+  <div class="row" id="apps-row"></div>
+
+  <div class="section-title">Filmes e Séries Lançamentos</div>
+  <div class="row" id="movies-row"></div>
+
+<script>
+  const TMDB_API_KEY = "32b1a1dd6b9ba3fbac0fbbb5aa5851ad";
+
+  function updateClock() {
+    const now = new Date();
+    document.getElementById('clock').innerText = now.toLocaleTimeString('pt-BR', {hour: '2-digit', minute: '2-digit'});
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  function openWifi() {
+    if (window.AndroidTV) AndroidTV.openWifiSettings();
+  }
+
+  function loadApps() {
+    const container = document.getElementById('apps-row');
+    let apps = [];
+    if (window.AndroidTV) {
+      apps = JSON.parse(AndroidTV.getInstalledApps());
+    } else {
+      apps = [{name: "YouTube", package: "", icon: ""}, {name: "Netflix", package: "", icon: ""}];
+    }
+
+    container.innerHTML = apps.map((app, i) => `
+      <button class="app-card focusable" data-row="0" data-col="${i}" onclick="launch('${app.package}')">
+        <img src="${app.icon}" alt="">
+        <span>${app.name}</span>
+      </button>
+    `).join('');
+  }
+
+  function launch(pkg) {
+    if (window.AndroidTV && pkg) AndroidTV.launchApp(pkg);
+  }
+
+  async function loadTrending() {
+    try {
+      const res = await fetch(`https://api.themoviedb.org/3/trending/all/week?api_key=${TMDB_API_KEY}&language=pt-BR`);
+      const data = await res.json();
+      const items = data.results || [];
+
+      if (items.length > 0) {
+        updateHero(items[0]);
+      }
+
+      const row = document.getElementById('movies-row');
+      row.innerHTML = items.slice(0, 15).map((item, i) => {
+        const title = item.title || item.name || "Filme";
+        const tmdbUrl = `https://www.themoviedb.org/${item.media_type || 'movie'}/${item.id}`;
+        return `
+          <a class="movie-card focusable" href="${tmdbUrl}" target="_blank" data-row="1" data-col="${i}"
+            onfocus='updateHero(${JSON.stringify(item).replace(/'/g, "&apos;")})'>
+            <img src="https://image.tmdb.org/t/p/w342${item.poster_path}" alt="${title}">
+          </a>
+        `;
+      }).join('');
+    } catch (e) {
+      document.getElementById('hero-title').innerText = "Modo Offline";
+    }
+  }
+
+  function updateHero(item) {
+    document.getElementById('hero-title').innerText = item.title || item.name;
+    document.getElementById('hero-desc').innerText = item.overview || "Disponível nos serviços de streaming.";
+    if (item.backdrop_path) {
+      const bg = `https://image.tmdb.org/t/p/w1280${item.backdrop_path}`;
+      document.getElementById('hero-banner').style.backgroundImage =
+        `linear-gradient(90deg, rgba(13,15,20,0.95) 35%, rgba(13,15,20,0.15) 100%), url('${bg}')`;
+      document.getElementById('bg-backdrop').style.backgroundImage = `url('${bg}')`;
+    }
+  }
+
+  document.addEventListener('keydown', (e) => {
+    const active = document.activeElement;
+    const focusables = Array.from(document.querySelectorAll('.focusable'));
+    if (!focusables.includes(active)) {
+      if (focusables[1]) focusables[1].focus();
+      return;
+    }
+    const idx = focusables.indexOf(active);
+    if (e.key === 'ArrowRight' && focusables[idx + 1]) {
+      focusables[idx + 1].focus();
+      focusables[idx + 1].scrollIntoView({behavior: 'smooth', inline: 'center'});
+    } else if (e.key === 'ArrowLeft' && focusables[idx - 1]) {
+      focusables[idx - 1].focus();
+      focusables[idx - 1].scrollIntoView({behavior: 'smooth', inline: 'center'});
+    } else if (e.key === 'ArrowDown') {
+      const nextRow = document.querySelector('[data-row="1"]');
+      if (nextRow) nextRow.focus();
+    } else if (e.key === 'ArrowUp') {
+      const prevRow = document.querySelector('[data-row="0"]');
+      if (prevRow) prevRow.focus();
+    }
+  });
+
+  loadApps();
+  loadTrending();
+  setTimeout(() => {
+    const firstApp = document.querySelector('[data-row="0"]');
+    if (firstApp) firstApp.focus();
+  }, 400);
+</script>
+</body>
+</html>
